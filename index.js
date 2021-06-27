@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 const fileUpload = require('express-fileupload');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 require('dotenv').config();
 
 const port = 5100;
@@ -19,21 +19,53 @@ client.connect(err => {
     console.log('MongoDB Connected');
 
     app.post('/add-blog', (req, res) => {
-        console.log(req.files.file);
-        console.log(req.body);
+        const file = req.files.file;
+        const imgData = file.data.toString('base64');
+        const image = {
+            contentType: file.mimetype,
+            size: file.size,
+            img: Buffer.from(imgData, 'base64'),
+        }
+
+        const title = req.body.title;
+        const content = req.body.content;
+        const publishDate = req.body.publishDate;
+
+        blogsCollection.insertOne({ title, content, publishDate, image })
+            .then(result => {
+                res.send(result.insertedCount > 0);
+            })
     });
 
     app.get('/check-admin/:email', (req, res) => {
         adminCollection.findOne({ email: req.params.email })
-        .then(result => {
-            if(result){
-                res.send(true);
+            .then(result => {
+                if (result) {
+                    res.send(true);
+                } else {
+                    res.send(false);
+                }
+            })
+            .catch(() => res.send(false));
+    });
+
+    app.get('/blogs', (req, res) => {
+        blogsCollection.find({})
+        .toArray((err, documents) => {
+            if(err){
+                res.send({});
             } else{
-                res.send(false);
+                res.send(documents);
             }
         })
+    });
+
+    app.delete('/delete-blog/:id', (req, res) => {
+        blogsCollection.deleteOne({ _id: ObjectId(req.params.id)})
+        .then(result => res.send(result.deletedCount > 0))
         .catch(() => res.send(false));
     });
+
 });
 
 app.listen(port, () => {
